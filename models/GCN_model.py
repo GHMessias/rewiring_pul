@@ -8,9 +8,9 @@ class GCN_model(torch.nn.Module):
         self.layer1 = GCNConv(in_channels, hidden_channels)
         self.layer2 = GCNConv(hidden_channels, out_channels)
 
-    def forward(self, x, graphs):
-        x = self.layer1(x, graphs[0].edge_index)
+    def forward(self, x, edge_index):
+        x = self.layer1(x, edge_index)
         x = F.relu(x)
-        x = self.layer2(x, graphs[0].edge_index)
+        x = self.layer2(x, edge_index)
 
         return x

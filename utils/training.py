@@ -4,32 +4,53 @@ import torch
 import networkx as nx
 from torch_geometric.datasets import Planetoid
 import torch.nn.functional as F
-from torch_geometric.utils import from_networkx
+from torch_geometric.utils import from_networkx, to_networkx
+from utils.rewiring import rewiring
+from utils.evaluate import negative_inference, evaluate_model
 
-def train(model, optimizer, epochs, P, rewiring = True, graph_list = None, graph = None):
 
-    if rewiring:
+def train(graph, model, optimizer, epochs, P, ro, L, true_labels, rewiring_usage = True, num_neg = 100):
+    '''
+    A partir dos dados positivos, gera os grafos para valores de L e ro. Esses grafos são utilizados para treinar o modelo de GCN
+    '''
+
+    if rewiring_usage:
         # mask for training
-        mask = torch.zeros(graph_list[0].x.shape[0], dtype = torch.bool)
+        mask = torch.zeros(graph.x.shape[0], dtype = torch.bool)
 
         for element in P:
             mask[element] = True
 
         losses = list()
+        accs = list()
+        f1s = list()
 
         model.train()
+
+        graph_list = rewiring(to_networkx(graph), L, P, ro)
+        graph_list = [graph] + [from_networkx(G) for G in graph_list]
+        # print(len(graph_list)) 
+
         for epoch in range(epochs):
             optimizer.zero_grad()
-            H_L = model.encode(graph_list[0].x.float(), graph_list)
+            H_L = model.encode(graph.x.float(), graph_list)
             out = model.decode(H_L)
 
             loss = F.binary_cross_entropy(out, graph_list[0].x.float())
-            print(f'epoch: {epoch} | loss: {loss.item()}')
+            print(f'epoch: {epoch} | loss: {loss.item()}', end = '\r')
             loss.backward()
             optimizer.step()
 
             losses.append(loss)
-        return losses
+            _negatives = negative_inference(model, graph_list,100)
+            acc, f1 = evaluate_model(_negatives, true_labels)
+            accs.append(acc)
+            f1s.append(f1)
+        return {
+            'losses': losses,
+            'acc_per_epoch': accs,
+            'f1_per_epoch': f1s,
+        }
 
         
     else:
@@ -44,7 +65,7 @@ def train(model, optimizer, epochs, P, rewiring = True, graph_list = None, graph
         model.train()
         for epoch in range(epochs):
             optimizer.zero_grad()
-            H_L = model.encode(graph.x.float(), graph)
+            H_L = model.encode(graph.x.float(), graph.edge_index)
             out = model.decode(H_L)
 
             loss = F.binary_cross_entropy(out, graph.x.float())
@@ -55,9 +76,5 @@ def train(model, optimizer, epochs, P, rewiring = True, graph_list = None, graph
             losses.append(loss)
 
             return losses
-
-
-
-
 
 
