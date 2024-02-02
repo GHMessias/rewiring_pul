@@ -72,23 +72,38 @@ if __name__ == '__main__':
                         optimizer_RGCN = torch.optim.Adam(GAE_RGCN.parameters(), lr = args.lr, weight_decay = args.L2norm)
                         GAE_RGCN.float()
                         results = train(graph = data,
-                                            model = GAE_RGCN,
-                                            optimizer = optimizer_RGCN,
-                                            epochs = args.epochs,
-                                            P = P,
-                                            P_rate = prate,
-                                            true_labels = true_labels,
-                                            ro = rorate,
-                                            L = lrate,
-                                            rewiring_usage = True,
-                                            return_dataframe = True)
+                                        model = GAE_RGCN,
+                                        optimizer = optimizer_RGCN,
+                                        epochs = args.epochs,
+                                        P = P,
+                                        P_rate = prate,
+                                        true_labels = true_labels,
+                                        ro = rorate,
+                                        L = lrate,
+                                        rewiring_usage = True,
+                                        return_dataframe = True)
                         results['model'] = 'RGCN'
                         df = pd.concat([df, results])
 
-                        df.to_csv('RGCN')
+                    if "GCN" in args.model:
+                        GCN_encoder = GCN_model(data.x.shape[1], hidden_channels, out_channels)
+                        GCN_decoder = MLP_model(out_channels, hidden_channels, data.x.shape[1])
+                        GAE_GCN = GAE(encoder = GCN_encoder, decoder = GCN_decoder)
+                        optimizer_GCN = torch.optim.Adam(GAE_GCN.parameters(), lr = args.lr, weight_decay = args.L2norm)
+                        GAE_GCN.float()
+                        results = train(graph = data,
+                                        model = GAE_GCN,
+                                        optimizer = optimizer_GCN,
+                                        epochs = args.epochs,
+                                        P = P,
+                                        P_rate = prate,
+                                        true_labels = true_labels,
+                                        rewiring_usage=False,
+                                        return_dataframe=True
+                        )
+                        results['model'] = 'GCN'
+                    df.to_csv('results/dataframe_results.csv',index = False)
                     
-        if "GCN" in args.model:
-            ""
     
     if args.training_type == 'pontual':
         true_labels = np.array([1 if x == 3 else 0 for x in data.y])
@@ -117,43 +132,5 @@ if __name__ == '__main__':
                             rewiring_usage = True)
         
         print(results['acc_per_epoch'][-1], results['f1_per_epoch'][-1], max(results['acc_per_epoch']), max(results['f1_per_epoch']))
-
-        epocas = list(range(1, len(results['losses']) + 1))
-
-        # Criar o gráfico de linha simples
-        plt.plot(results['acc_per_epoch'])
-
-        # Adicionar rótulos aos eixos (opcional)
-        plt.xlabel('Eixo X')
-        plt.ylabel('Eixo Y')
-        plt.title('Gráfico Simples')
-
-        # Exibir o gráfico
-        plt.show()                       
-
-        # if 'GCN' in args.model:
-        #     GCN_encoder = GCN_model(data.x.shape[1], hidden_channels, out_channels)
-        #     GCN_decoder = MLP_model(out_channels, hidden_channels, data.x.shape[1])
-        #     GAE_GCN = GAE(encoder = GCN_encoder, decoder = GCN_decoder)
-        #     optimizer_GCN = torch.optim.Adam(GAE_GCN.parameters(), lr = args.lr, weight_decay = args.L2norm)
-
-        #     # print(GAE_GCN.encode(data.x, data.edge_index))
-            
-        #     losses_GCN = train(model = GAE_GCN,
-        #                        optimizer=optimizer_GCN,
-        #                        epochs = args.epochs,
-        #                        P = P,
-        #                        rewiring= False,
-        #                        graph = data)
-        #     model_losses['loss GCN'] = losses_GCN
-        #     negatives_GAE = negative_inference(GAE_GCN, data, 100)
-        #     print(evaluate_model(negatives_GAE, true_labels))
-
-
-        
-        
-
-
-        
         
 
