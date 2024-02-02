@@ -7,9 +7,10 @@ import torch.nn.functional as F
 from torch_geometric.utils import from_networkx, to_networkx
 from utils.rewiring import rewiring
 from utils.evaluate import negative_inference, evaluate_model
+import pandas as pd
 
 
-def train(graph, model, optimizer, epochs, P, ro, L, true_labels, rewiring_usage = True, num_neg = 100):
+def train(graph, model, optimizer, epochs, P, P_rate, ro, L, true_labels, rewiring_usage = True, num_neg = 100, return_dataframe = False):
     '''
     A partir dos dados positivos, gera os grafos para valores de L e ro. Esses grafos são utilizados para treinar o modelo de GCN
     '''
@@ -37,22 +38,41 @@ def train(graph, model, optimizer, epochs, P, ro, L, true_labels, rewiring_usage
             out = model.decode(H_L)
 
             loss = F.binary_cross_entropy(out, graph_list[0].x.float())
-            print(f'epoch: {epoch} | loss: {loss.item()}', end = '\r')
+            print(f'epoch: {epoch + 1} | loss: {loss.item()}', end = '\r')
             loss.backward()
             optimizer.step()
 
-            losses.append(loss)
-            _negatives = negative_inference(model, graph_list,100)
+            losses.append(loss.item())
+            _negatives = negative_inference(model, graph_list,num_neg)
             acc, f1 = evaluate_model(_negatives, true_labels)
             accs.append(acc)
             f1s.append(f1)
-        return {
-            'losses': losses,
-            'acc_per_epoch': accs,
-            'f1_per_epoch': f1s,
-        }
 
+        if not return_dataframe:
+            return {
+                'losses': losses,
+                'acc_per_epoch': accs,
+                'f1_per_epoch': f1s,
+            }
         
+        if return_dataframe:
+            df = pd.DataFrame({
+                'L': [L],
+                'ro': [ro],
+                'P': [P_rate],
+                'final_acc': [accs[-1]],
+                'final_f1': [f1s[-1]],
+                'max_acc': [max(accs)],
+                'max_f1': [max(f1s)],
+                'acc_per_epoch': [accs],
+                'f1_per_epoch': [f1s],
+                'losses': [losses]
+                })
+            
+            return df
+
+
+    # Ainda preciso organizar essa parte      
     else:
         # mask for training
         mask = torch.zeros(graph.x.shape[0], dtype = torch.bool)

@@ -13,6 +13,8 @@ import json
 import networkx as nx
 import random
 import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
 
 
 parser = argparse.ArgumentParser()
@@ -23,13 +25,13 @@ parser.add_argument("--name", type = str, help = 'Cora')
 parser.add_argument("--samples", type = int, default = 1)
 parser.add_argument('--model', type = str, default = "RGCN, GCN, random") #RGCN, GCN
 parser.add_argument('--epochs', type = int, default = 100)
-parser.add_argument('--lr', type = float, default=1e-6)
+parser.add_argument('--lr', type = float, default=0.001)
 parser.add_argument('--L2norm', type = float, default=0)
 
 # If training_type is general
 parser.add_argument('--ro_range', nargs= '+', type = int, default = [1,3,5,7,9])
 parser.add_argument('--L_range', nargs='+', type = int, default = [2,3,4,5])
-parser.add_argument('--P_rate_range', type=str, nargs='+', default = [n/100 for n in range(1,26)])
+parser.add_argument('--P_rate_range', type=float, nargs='+', default = [n/100 for n in range(1,26)])
 
 # If training_type is pontual
 parser.add_argument('--L', type = int, default=3)
@@ -42,58 +44,48 @@ if __name__ == '__main__':
 
     dataset = Planetoid(root = 'datasets', name = args.name)
     data = dataset[0]
-    # random.seed(100)
-    # torch.manual_seed(100)
+    random.seed(100)
+    torch.manual_seed(100)
 
     if args.training_type == 'general':
-        if "RGCN" in args.model:
-            for sample in range(args.samples):
-                final_result = list()
-                for prate in args.P_rate_range:
-                    for lrate in args.L_range:
-                        for rorate in args.ro_range:
-                            print(f'\n P = {prate}, L = {lrate}, ro = {rorate}')
+        # Defining NN parameters
+        in_channels = data.x.shape[0]
+        # Arrumar isso pro args
+        hidden_channels = 64
+        out_channels = 16
+        
+        true_labels = np.array([1 if x == 3 else 0 for x in data.y])
+        all_positives = np.array([x for x in range(data.x.shape[0]) if true_labels[x] == 1])
 
-                            true_labels = np.array([1 if x == 3 else 0 for x in data.y])
-                            all_positives = np.array([x for x in range(data.x.shape[0]) if true_labels[x] == 1])
-                            in_channels = data.x.shape[0]
-                            # Arrumar isso pro args
-                            hidden_channels = 64
-                            out_channels = 16
+        df = pd.DataFrame()
+        # for sample in range(args.samples):
+        for prate in args.P_rate_range:
+            P = random.sample(all_positives.tolist(), int(prate * len(all_positives)))
+            for lrate in args.L_range:
+                for rorate in args.ro_range:
+                    if "RGCN" in args.model:
+                        
+                        print(f'\n P = {prate}, L = {lrate}, ro = {rorate}')
+                        RGCN_encoder = RGCN_model(data.x.shape[1], hidden_channels, out_channels, L = lrate)
+                        RGCN_decoder = MLP_model(out_channels, hidden_channels, data.x.shape[1])
+                        GAE_RGCN = GAE(encoder = RGCN_encoder, decoder = RGCN_decoder)
+                        optimizer_RGCN = torch.optim.Adam(GAE_RGCN.parameters(), lr = args.lr, weight_decay = args.L2norm)
+                        GAE_RGCN.float()
+                        results = train(graph = data,
+                                            model = GAE_RGCN,
+                                            optimizer = optimizer_RGCN,
+                                            epochs = args.epochs,
+                                            P = P,
+                                            P_rate = prate,
+                                            true_labels = true_labels,
+                                            ro = rorate,
+                                            L = lrate,
+                                            rewiring_usage = True,
+                                            return_dataframe = True)
+                        results['model'] = 'RGCN'
+                        df = pd.concat([df, results])
 
-                            model_losses = dict()
-
-                            P = random.sample(all_positives.tolist(), int(prate * len(all_positives)))
-                            
-                            RGCN_encoder = RGCN_model(data.x.shape[1], hidden_channels, out_channels, L = lrate)
-                            RGCN_decoder = MLP_model(out_channels, hidden_channels, data.x.shape[1])
-                            GAE_RGCN = GAE(encoder = RGCN_encoder, decoder = RGCN_decoder)
-                            optimizer_RGCN = torch.optim.Adam(GAE_RGCN.parameters(), lr = args.lr, weight_decay = args.L2norm)
-                            GAE_RGCN.float()
-
-                            results = train(graph = data,
-                                                model = GAE_RGCN,
-                                                optimizer=optimizer_RGCN,
-                                                epochs = args.epochs,
-                                                P = P,
-                                                true_labels=true_labels,
-                                                ro = rorate,
-                                                L = lrate,
-                                                rewiring_usage = True)
-                            results['final_acc'] = results['acc_per_epoch'][-1]
-                            results['final_f1'] = results['f1_per_epoch'][-1]
-                            results['ro'] = rorate
-                            results['L'] = lrate
-                            results['P'] = prate
-                            results['sample'] = sample
-                            final_result.append(results)
-
-            # Nome do arquivo JSON
-            nome_arquivo_json = "RGCN_results.json"
-
-            # Escrever o dicionário no arquivo JSON
-            with open(nome_arquivo_json, 'w') as arquivo_json:
-                json.dump(results, arquivo_json)
+                        df.to_csv('RGCN')
                     
         if "GCN" in args.model:
             ""
@@ -105,8 +97,6 @@ if __name__ == '__main__':
         # Arrumar isso pro args
         hidden_channels = 64
         out_channels = 16
-
-        model_losses = dict()
 
         P = random.sample(all_positives.tolist(), int(args.P_rate * len(all_positives)))
         
@@ -127,7 +117,19 @@ if __name__ == '__main__':
                             rewiring_usage = True)
         
         print(results['acc_per_epoch'][-1], results['f1_per_epoch'][-1], max(results['acc_per_epoch']), max(results['f1_per_epoch']))
-                        
+
+        epocas = list(range(1, len(results['losses']) + 1))
+
+        # Criar o gráfico de linha simples
+        plt.plot(results['acc_per_epoch'])
+
+        # Adicionar rótulos aos eixos (opcional)
+        plt.xlabel('Eixo X')
+        plt.ylabel('Eixo Y')
+        plt.title('Gráfico Simples')
+
+        # Exibir o gráfico
+        plt.show()                       
 
         # if 'GCN' in args.model:
         #     GCN_encoder = GCN_model(data.x.shape[1], hidden_channels, out_channels)
