@@ -3,7 +3,7 @@ from torch_geometric.nn import GCNConv, GAE
 import torch.nn.functional as F
 
 class RGCN_model(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, L):
+    def __init__(self, in_channels, hidden_channels, out_channels, L, dropout = 0.3):
         super(RGCN_model, self).__init__()
         self.L = L
         self.in_channels = in_channels
@@ -20,9 +20,9 @@ class RGCN_model(torch.nn.Module):
             for index, param in enumerate(self.rewiring_gcn1[i].parameters()):
                 if index == 1:
                     self.parameter_list.append(torch.nn.init.xavier_uniform_(param))
+                    # self.parameter_list.append(param)
                 else:
                     self.parameter_list.append(param)
-
 
         # Criando a segunda layer de rewiring
         self.rewiring_gcn2 = list()
@@ -50,5 +50,4 @@ class RGCN_model(torch.nn.Module):
         for i in range(self.L):
             _x = self.rewiring_gcn2[i](output_tensor_1, rewiring_graph_list[i].edge_index)
             output_tensor_2 += _x
-
         return output_tensor_2

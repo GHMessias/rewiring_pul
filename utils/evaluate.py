@@ -23,6 +23,17 @@ def negative_inference(model, rewiring_graphs, num_neg, weights = None):
 
     return list(dicionario_ordenado.keys())[:num_neg]
 
+def negative_inference_AE(model, data, num_neg = 200):
+    inference_dict = dict()
+    model.eval()
+    H_L = model.encode(data)
+    out = model.decode(H_L)
+    for element in range(data.shape[0]):
+        inference_dict[element] = F.binary_cross_entropy(out[element], data[element]).item()
+
+    dicionario_ordenado = dict(sorted(inference_dict.items(), key=lambda item: item[1]))
+    return list(dicionario_ordenado.keys())[:num_neg]
+
 def evaluate_model(negative, true_labels):
     y_pred = np.zeros_like(negative)
     y_true = np.array([true_labels[x] for x in negative])

@@ -14,3 +14,4 @@ class GCN_model(torch.nn.Module):
         x = self.layer2(x, edge_index)
 
         return x
+
