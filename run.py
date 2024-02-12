@@ -17,6 +17,7 @@ from models.MCLS import MCLS
 from models.LP_PUL import LP_PUL
 from models.PU_LP import PU_LP
 from models.RCSVM_RN import RCSVM_RN
+from torch_geometric.transforms import NormalizeFeatures
 import torch
 from torch_geometric.nn import GAE
 from utils.training import train, train_AE
@@ -35,9 +36,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--training_type', type = str, default = 'general')
 parser.add_argument("--name", type = str, help = 'Cora')
 parser.add_argument("--samples", type = int, default = 5)
-parser.add_argument('--model', type = str, default = "RGCN GCN LPPUL PULP MCLS RCSVM CCRNE AE RANDOM") #RGCN, GCN
+parser.add_argument('--model', type = str, default = "RGCN GCN LPPUL PULP MCLS RCSVM CCRNE AE RANDOM")
 parser.add_argument('--epochs', type = int, default = 20)
-parser.add_argument('--lr', type = float, default=0.001)
+parser.add_argument('--lr', type = float, default=0.0005)
 parser.add_argument('--L2norm', type = float, default=1e-4)
 parser.add_argument('--lr_scheduler', type = float, default =0.9)
 parser.add_argument('--positive_class', type = int, default = 3)
@@ -54,10 +55,10 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
 
-    dataset = Planetoid(root = 'datasets', name = args.name)
+    dataset = Planetoid(root = 'datasets', name = args.name, transform = NormalizeFeatures())
     data = dataset[0]
-    # random.seed(2)
-    # torch.manual_seed(2)
+    # random.seed(101)
+    # torch.manual_seed(101)
 
     if args.training_type == 'general':  
         # Defining NN parameters
@@ -161,7 +162,7 @@ if __name__ == '__main__':
                     rcsvm_classifier = RCSVM_RN(data.x, P, U, alpha = 0.1, beta = 0.9)
                     rcsvm_classifier.train()
                     negatives = rcsvm_classifier.negative_inference(200)
-                    print(negatives)
+                    # print(negatives)
                     acc, f1 = evaluate_model(negatives, true_labels)
                     results = pd.DataFrame({'model': ['RCSVM'], 'acc': [acc], 'f1': [f1], 'P': prate})
                     df = pd.concat([df, results])
@@ -184,6 +185,12 @@ if __name__ == '__main__':
                                        return_dataframe = True)
                     results['model'] = 'AE'
                     df = pd.concat([df, results])
+                
+                if "RANDOM" in args.model:
+                    negatives = random.sample(list(range(data.x.shape[0])), 200)
+                    acc, f1 = evaluate_model(negatives, true_labels)
+                    results = pd.DataFrame({'model': ['RANDOM'], 'acc': [acc], 'f1': [f1], 'P': prate})
+                    df = pd.concat([df, results])
                 df.to_csv(f'results/dataframe_{args.name}_results.csv',index = False)
                     
     
@@ -201,7 +208,7 @@ if __name__ == '__main__':
             RGCN_encoder = RGCN_model(data.x.shape[1], hidden_channels, out_channels, L = args.L)
             RGCN_decoder = MLP_model(out_channels, hidden_channels, data.x.shape[1])
             GAE_RGCN = GAE(encoder = RGCN_encoder, decoder = RGCN_decoder)
-            optimizer_RGCN = torch.optim.Adam(GAE_RGCN.parameters(), lr = args.lr, weight_decay = args.L2norm)
+            optimizer_RGCN = torch.optim.SGD(GAE_RGCN.parameters(), lr = args.lr, weight_decay = args.L2norm)
             scheduler_RGCN = torch.optim.lr_scheduler.StepLR(optimizer_RGCN, step_size = 1, gamma = args.lr_scheduler)
             GAE_RGCN.float()
 
@@ -223,7 +230,7 @@ if __name__ == '__main__':
             GCN_encoder = GCN_model(data.x.shape[1], hidden_channels, out_channels)
             GCN_decoder = MLP_model(out_channels, hidden_channels, data.x.shape[1])
             GAE_GCN = GAE(encoder = GCN_encoder, decoder = GCN_decoder)
-            optimizer_GCN = torch.optim.Adam(GAE_GCN.parameters(), lr = args.lr, weight_decay = args.L2norm)
+            optimizer_GCN = torch.optim.SGD(GAE_GCN.parameters(), lr = args.lr, weight_decay = args.L2norm)
             scheduler_GCN = torch.optim.lr_scheduler.StepLR(optimizer_GCN, step_size = 1, gamma = args.lr_scheduler)
             GAE_GCN.float()
 
