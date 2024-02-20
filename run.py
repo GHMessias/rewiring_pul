@@ -28,15 +28,19 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from datasets.FactCheckedNews.FactCheckedNews import FactCheckedNews
+from datasets.FakeBr.FakeBr import FakeBr
+from datasets.FakeNewsNet.FakeNewsNet import FakeNewsNet
 
 
 parser = argparse.ArgumentParser()
 
 # Setting variables for all_training
 parser.add_argument('--training_type', type = str, default = 'general')
-parser.add_argument("--name", type = str, help = 'Cora')
+parser.add_argument("--name", type = str)
+parser.add_argument('--dataset', type = str, default = 'Planetoid')
 parser.add_argument("--samples", type = int, default = 5)
-parser.add_argument('--model', type = str, default = "RGCN GCN LPPUL PULP MCLS RCSVM CCRNE AE RANDOM")
+parser.add_argument('--model', type = str, default = "RGCN_MLP GCN_MLP LPPUL PULP MCLS RCSVM CCRNE AE RANDOM RGCN_GAE GCN_GAE RLPPUL")
 parser.add_argument('--epochs', type = int, default = 20)
 parser.add_argument('--lr', type = float, default=0.0005)
 parser.add_argument('--L2norm', type = float, default=1e-4)
@@ -55,10 +59,24 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
 
-    dataset = Planetoid(root = 'datasets', name = args.name, transform = NormalizeFeatures())
-    data = dataset[0]
-    # random.seed(101)
-    # torch.manual_seed(101)
+    if args.dataset == 'Planetoid':
+        dataset = Planetoid(root = 'datasets', name = args.name, transform = NormalizeFeatures())
+        data = dataset[0]
+
+    if args.dataset == 'FakeBr':
+        dataset = FakeBr(root = 'datasets/FakeBr', transform=NormalizeFeatures())
+        data = dataset.get()
+        print(data)
+
+    if args.dataset == 'FakeNewsNet':
+        dataset = FakeNewsNet(root = 'datasets/FakeNewsNet', transform=NormalizeFeatures())
+        data = dataset.get()
+        print(data)
+    
+    if args.dataset == 'FactCheckedNews':
+        dataset = FactCheckedNews(root = 'datasets/FactCheckedNews', transform=NormalizeFeatures())
+        data = dataset.get()
+        print(data)
 
     if args.training_type == 'general':  
         # Defining NN parameters
@@ -70,14 +88,14 @@ if __name__ == '__main__':
         true_labels = np.array([1 if x == args.positive_class else 0 for x in data.y])
         all_positives = np.array([x for x in range(data.x.shape[0]) if true_labels[x] == 1])
         
-
         df = pd.DataFrame()
         for sample in range(args.samples):
             print(f'################ SAMPLE {sample} ################ \n')
             for prate in args.P_rate_range:
                 P = random.sample(all_positives.tolist(), int(prate * len(all_positives)))
                 U = np.array([x for x in range(data.x.shape[0]) if x not in P])
-                if "RGCN" in args.model:
+                
+                if "RGCN_MLP" in args.model:
                     for lrate in args.L_range:
                         print(f'\n P = {prate}, L = {lrate}')
                         RGCN_encoder = RGCN_model(data.x.shape[1], hidden_channels, out_channels, L = lrate)
@@ -97,10 +115,10 @@ if __name__ == '__main__':
                                         scheduler=scheduler_RGCN,
                                         rewiring_usage = True,
                                         return_dataframe = True)
-                        results['model'] = 'RGCN'
+                        results['model'] = 'RGCN_MLP'
                         df = pd.concat([df, results])
 
-                if "GCN" in args.model:
+                if "GCN_MLP" in args.model:
                     GCN_encoder = GCN_model(data.x.shape[1], hidden_channels, out_channels)
                     GCN_decoder = MLP_model(out_channels, hidden_channels, data.x.shape[1])
                     GAE_GCN = GAE(encoder = GCN_encoder, decoder = GCN_decoder)
@@ -118,7 +136,7 @@ if __name__ == '__main__':
                                     rewiring_usage=False,
                                     return_dataframe=True
                     )
-                    results['model'] = 'GCN'
+                    results['model'] = 'GCN_MLP'
                     df = pd.concat([df, results])
                 
                 if "CCRNE" in args.model:
@@ -167,14 +185,14 @@ if __name__ == '__main__':
                     results = pd.DataFrame({'model': ['RCSVM'], 'acc': [acc], 'f1': [f1], 'P': prate})
                     df = pd.concat([df, results])
 
-                if "AE" in args.model:
+                if "AE_MLP" in args.model:
                     AE_encoder = MLP_model(data.x.shape[1], hidden_channels, out_channels)
                     AE_decoder = MLP_model(out_channels, hidden_channels, data.x.shape[1])
                     AE = GAE(encoder = AE_encoder, decoder = AE_decoder)
                     optimizer_AE = torch.optim.Adam(AE.parameters(), lr = args.lr, weight_decay = args.L2norm)
                     scheduler_AE = torch.optim.lr_scheduler.StepLR(optimizer_AE, step_size = 1, gamma = args.lr_scheduler)
                     AE.float()
-                    results = train_AE(data.x,
+                    results = train_AE(data,
                                        model = AE,
                                        optimizer =  optimizer_AE,
                                        epochs = args.epochs,
@@ -191,7 +209,69 @@ if __name__ == '__main__':
                     acc, f1 = evaluate_model(negatives, true_labels)
                     results = pd.DataFrame({'model': ['RANDOM'], 'acc': [acc], 'f1': [f1], 'P': prate})
                     df = pd.concat([df, results])
-                df.to_csv(f'results/dataframe_{args.name}_results.csv',index = False)
+                
+                if "RGCN_GAE" in args.model:
+                    for lrate in args.L_range:
+                        graph_list = rewiring(to_networkx(data, to_undirected=True), lrate, P)
+                        graph_list = [data] + [from_networkx(G) for G in graph_list]
+                        print(f'\n P = {prate}, L = {lrate}')
+                        RGCN_encoder = RGCN_model(data.x.shape[1], hidden_channels, out_channels, L = lrate)
+                        GAE_RGCN = GAE(encoder = RGCN_encoder)
+                        optimizer_RGCN = torch.optim.Adam(GAE_RGCN.parameters(), lr = args.lr)
+                        GAE_RGCN.float()
+                        for e in range(500):
+                            optimizer_RGCN.zero_grad()
+                            H_L = GAE_RGCN.encode(data.x.float(), graph_list)
+                            loss = GAE_RGCN.recon_loss(H_L, graph_list[-1].edge_index)
+                            print(f'epoch: {e + 1} | loss: {loss.item()}', end = '\r')
+                            loss.backward()
+                            optimizer_RGCN.step()
+
+                        negatives = negative_inference(GAE_RGCN, graph_list, inference_type = 'distance', positives = P, unlabeled = U)
+                        acc,f1 = evaluate_model(negatives, true_labels)
+                        results = pd.DataFrame({
+                                        'L': [lrate],
+                                        'P': [prate],
+                                        'acc': [acc],
+                                        'f1': [f1],
+                                        })
+                        results['model'] = 'RGCN_GAE'
+                        df = pd.concat([df, results])
+
+                if "RLPPUL" in args.model:
+                    graph_list = rewiring(to_networkx(data, to_undirected=True), 5, P)
+                    lp_pul_classifier = LP_PUL(graph_list[-1], data.x, P, U)
+                    lp_pul_classifier.train()
+                    negatives = lp_pul_classifier.negative_inference(200)
+                    # print(negatives)
+                    acc, f1 = evaluate_model(negatives, true_labels)
+                    results = pd.DataFrame({'model': ['RLP_PUL'], 'acc': [acc], 'f1': [f1], 'P': prate})
+                    df = pd.concat([df, results])    
+
+                if "GCN_GAE" in args.model:
+                    GCN_encoder = GCN_model(data.x.shape[1], hidden_channels, out_channels)
+                    GAE_GCN = GAE(encoder = GCN_encoder)
+                    optimizer_GCN = torch.optim.Adam(GAE_GCN.parameters(), lr = args.lr)
+                    GAE_GCN.float()
+                    for e in range(500):
+                        optimizer_GCN.zero_grad()
+                        H_L = GAE_GCN.encode(data.x.float(), data.edge_index)
+                        loss = GAE_GCN.recon_loss(H_L, data.edge_index)
+                        print(f'epoch: {e + 1} | loss: {loss.item()}', end = '\r')
+                        loss.backward()
+                        optimizer_GCN.step()
+
+                    negatives = negative_inference(GAE_GCN, data, inference_type = 'distance', positives = P, unlabeled = U)
+                    acc,f1 = evaluate_model(negatives, true_labels)
+                    results = pd.DataFrame({
+                                    'P': [prate],
+                                    'acc': [acc],
+                                    'f1': [f1],
+                                    })
+                    results['model'] = 'GCN_GAE'
+                    df = pd.concat([df, results])
+                    
+                df.to_csv(f'results/dataframe_{args.dataset}_{args.name}_results.csv',index = False)
                     
     
     if args.training_type == 'pontual':
@@ -203,8 +283,9 @@ if __name__ == '__main__':
         out_channels = 16
 
         P = random.sample(all_positives.tolist(), int(args.P_rate * len(all_positives)))
+        U = np.array([x for x in range(data.x.shape[0]) if x not in P])
 
-        if "RGCN" in args.model:
+        if "RGCN_MLP" in args.model:
             RGCN_encoder = RGCN_model(data.x.shape[1], hidden_channels, out_channels, L = args.L)
             RGCN_decoder = MLP_model(out_channels, hidden_channels, data.x.shape[1])
             GAE_RGCN = GAE(encoder = RGCN_encoder, decoder = RGCN_decoder)
@@ -226,7 +307,7 @@ if __name__ == '__main__':
             
             print('RGCN', results['acc_per_epoch'][-1], round(results['f1_per_epoch'][-1], 4), max(results['acc_per_epoch']), round(max(results['f1_per_epoch']), 4))
 
-        if "GCN" in args.model:
+        if "GCN_MLP" in args.model:
             GCN_encoder = GCN_model(data.x.shape[1], hidden_channels, out_channels)
             GCN_decoder = MLP_model(out_channels, hidden_channels, data.x.shape[1])
             GAE_GCN = GAE(encoder = GCN_encoder, decoder = GCN_decoder)
@@ -252,4 +333,32 @@ if __name__ == '__main__':
             negatives = random.sample(list(range(data.x.shape[0])), 200)
             acc, f1 = evaluate_model(negatives, true_labels)
             print('random', acc, f1)
+
+        if "RGCN_GAE" in args.model:
+            graph_list = rewiring(to_networkx(data, to_undirected=True), args.L, P)
+            graph_list = [data] + [from_networkx(G) for G in graph_list]
+            print(f'\n P = {args.P_rate}, L = {args.L}')
+            RGCN_encoder = RGCN_model(data.x.shape[1], hidden_channels, out_channels, L = args.L)
+            GAE_RGCN = GAE(encoder = RGCN_encoder)
+            optimizer_RGCN = torch.optim.Adam(GAE_RGCN.parameters(), lr = args.lr)
+            GAE_RGCN.float()
+            for e in range(500):
+                optimizer_RGCN.zero_grad()
+                H_L = GAE_RGCN.encode(data.x.float(), graph_list)
+                loss = GAE_RGCN.recon_loss(H_L, graph_list[-1].edge_index)
+                print(f'epoch: {e + 1} | loss: {loss.item()}', end = '\r')
+                loss.backward()
+                optimizer_RGCN.step()
+
+            negatives = negative_inference(GAE_RGCN, graph_list, inference_type = 'distance', positives = P, unlabeled = U)
+            acc,f1 = evaluate_model(negatives, true_labels)            
+            print(f'RGCN_GAE: acc {acc} f1 {f1}')
+
+        if "LPPUL" in args.model:
+            lp_pul_classifier = LP_PUL(to_networkx(data, to_undirected = True), data.x, P, U)
+            lp_pul_classifier.train()
+            negatives = lp_pul_classifier.negative_inference(200)
+            # print(negatives)
+            acc, f1 = evaluate_model(negatives, true_labels)
+            print(f'LP_PUL acc {acc}, f1 {f1}')
 

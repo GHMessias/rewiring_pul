@@ -6,7 +6,7 @@ from torch_geometric.datasets import Planetoid
 import torch.nn.functional as F
 from torch_geometric.utils import from_networkx, to_networkx
 from utils.rewiring import rewiring
-from utils.evaluate import negative_inference, evaluate_model, negative_inference_AE
+from utils.evaluate import negative_inference, evaluate_model
 import pandas as pd
 
 
@@ -49,7 +49,7 @@ def train(graph, model, optimizer, epochs, true_labels, P, P_rate, L = None , re
             H_L = model.encode(graph.x.float(), graph_list)
             out = model.decode(H_L)
 
-            loss = F.binary_cross_entropy(out, graph_list[0].x.float())
+            loss = F.binary_cross_entropy(out[mask], graph_list[0].x.float()[mask])
             print(f'epoch: {epoch + 1} | loss: {loss.item()}', end = '\r')
             loss.backward()
             optimizer.step()
@@ -103,7 +103,7 @@ def train(graph, model, optimizer, epochs, true_labels, P, P_rate, L = None , re
             H_L = model.encode(graph.x.float(), graph.edge_index)
             out = model.decode(H_L)
 
-            loss = F.binary_cross_entropy(out, graph.x.float())
+            loss = F.binary_cross_entropy(out[mask], graph.x.float()[mask])
             print(f'epoch: {epoch + 1} | loss: {loss.item()}', end = '\r')
             loss.backward()
             optimizer.step()
@@ -141,7 +141,7 @@ def train(graph, model, optimizer, epochs, true_labels, P, P_rate, L = None , re
             
 def train_AE(data, model, optimizer, epochs, true_labels, P, P_rate,scheduler = None, num_neg = 200, return_dataframe = True):
     # mask for training
-    mask = torch.zeros(data.shape[0], dtype = torch.bool)
+    mask = torch.zeros(data.x.shape[0], dtype = torch.bool)
 
     for element in P:
         mask[element] = True
@@ -153,10 +153,10 @@ def train_AE(data, model, optimizer, epochs, true_labels, P, P_rate,scheduler = 
 
     for epoch in range(epochs):
         optimizer.zero_grad()
-        H_L = model.encode(data)
+        H_L = model.encode(data.x)
         out = model.decode(H_L)
 
-        loss = F.binary_cross_entropy(out, data)
+        loss = F.binary_cross_entropy(out[mask], data.x[mask])
         print(f'epoch: {epoch + 1} | loss: {loss.item()}', end = '\r')
         loss.backward()
         optimizer.step()
@@ -166,7 +166,7 @@ def train_AE(data, model, optimizer, epochs, true_labels, P, P_rate,scheduler = 
 
         losses.append(loss.item())
 
-        _negatives = negative_inference_AE(model, data)
+        _negatives = negative_inference(model, data)
         acc, f1 = evaluate_model(_negatives, true_labels)
         accs.append(acc)
         f1s.append(f1)

@@ -4,21 +4,24 @@ from sklearn.neighbors import kneighbors_graph
 
 
 class PU_LP:
-    def __init__(self, data, positives, unlabeled, alpha, m, l):
+    def __init__(self, data, positives, unlabeled, alpha=0.3, m = 3, l = 1, precomputed_graph = False, A = None):
         self.positives = positives
         self.data = data
         self.unlabeled = unlabeled
         self.alpha = alpha
         self.m = m
         self.l = l
+        self.precomputed_graph = precomputed_graph
+        self.A = A
 
     def train(self):
         pul_mask = torch.tensor([1 if x in self.positives else 0 for x in range(len(self.data))])
-        A = kneighbors_graph(self.data, 3, mode='connectivity', metric='minkowski', include_self=False).todense()
-        eigenvalues, eigenvectors = np.linalg.eig(A)
+        if not self.precomputed_graph:
+            self.A = kneighbors_graph(self.data, 3, mode='connectivity', metric='minkowski', include_self=False).todense()
+        eigenvalues, eigenvectors = np.linalg.eig(self.A)
         largest_eigenvalue = np.max(eigenvalues)
         if self.alpha < largest_eigenvalue:
-            W = torch.inverse(torch.eye(len(A)) - self.alpha * A) - torch.eye(len(A))
+            W = torch.inverse(torch.eye(len(self.A)) - self.alpha * self.A) - torch.eye(len(self.A))
         else:
             print(self.alpha, largest_eigenvalue)
             raise Exception('alpha > largest_eigenvalue')
@@ -51,3 +54,6 @@ class PU_LP:
     def negative_inference(self, num_neg):
         #return self.RN[-len(self.positives + self.RP):][:num_neg]
         return self.RN[-num_neg:]
+    
+    def positive_inference(self):
+        return self.RP

@@ -1,2 +1,18 @@
-utils
---evaluate (contém as funções de avaliação do modelo)
+Ideia final dos experimentos (Baseado em https://arxiv.org/pdf/2103.04683.pdf): 
+
+Vamos testar a eficiência da proposta de embedding em problemas de PUL, separando quando possível o embedding tradicional unsupervised
+do embedding SSL.
+
+Algoritmos testados na fase final:
+OCSVM OK
+LP_PUL OK
+PU_LP OK
+Distance Mean 
+nnPU
+Bagging-Based PU_learning (https://github.com/pulearn/pulearn)
+
+Algoritmos de Embedding:
+GAE OK
+rGAE OK
+Node2Vec OK
+No embedding OK
