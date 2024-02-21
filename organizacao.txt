@@ -7,9 +7,9 @@ Algoritmos testados na fase final:
 OCSVM OK
 LP_PUL OK
 PU_LP OK
-Distance Mean 
+Distance Mean OK
 nnPU
-Bagging-Based PU_learning (https://github.com/pulearn/pulearn)
+Elkanoto PU_learning (https://github.com/pulearn/pulearn)
 
 Algoritmos de Embedding:
 GAE OK
