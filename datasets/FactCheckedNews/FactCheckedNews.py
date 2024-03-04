@@ -50,6 +50,12 @@ class FactCheckedNews(Dataset):
         X = torch.tensor(np.array(vectors))
         edge_index = knn_graph(X, 3)
         y = torch.tensor(df['label'], dtype = torch.int)
+
+        # Dando Shuffle nos Datasets
+        indices = np.random.permutation(X.shape[0])
+        X = X[indices]
+        y = y[indices]
+
         
         data = Data(x = X, edge_index=edge_index, y = y)
         torch.save(data, osp.join(self.processed_dir, f'data.pt'))
@@ -60,3 +66,6 @@ class FactCheckedNews(Dataset):
     def get(self):
         data = torch.load(osp.join(self.processed_dir, f'data.pt'))
         return data
+
+# dataset = FactCheckedNews(root = 'datasets/FactCheckedNews')
+# dataset.process()

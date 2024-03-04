@@ -13,13 +13,13 @@ def return_index(centroids, O_j):
             return index
         
 class CCRNE:
-    def __init__(self, data, positives, unlabeled):
+    def __init__(self, data, positives, unlabeled, ratio = 0.6):
         self.clusters = dict()
         self.data = data
         self.r_p = 0
         self.positives = positives
         self.unlabeled = unlabeled
-        self.ratio = 0.6
+        self.ratio = ratio
 
     def train(self):
         self.pul_mask = torch.zeros(len(self.data))

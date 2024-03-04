@@ -2,6 +2,7 @@ import json
 import networkx as nx
 from collections import deque
 import random
+import numpy as np
 
 def remove_elements(x,y):
     '''
@@ -75,3 +76,13 @@ def rng(prob):
     # Gera um número aleatório entre 0 e 1
     numero_aleatorio = random.random()
     return numero_aleatorio <= prob
+
+
+def data_to_adjacency_matrix(data):
+    num_nodes = data.num_nodes
+    edge_index = data.edge_index.numpy()
+    
+    adjacency_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
+    adjacency_matrix[edge_index[0], edge_index[1]] = 1
+    
+    return adjacency_matrix

@@ -22,6 +22,7 @@ import torch
 from torch_geometric.nn import GAE
 from utils.training import train, train_AE
 from utils.evaluate import negative_inference, evaluate_model
+from utils.utils import data_to_adjacency_matrix
 import json
 import networkx as nx
 import random
@@ -31,6 +32,7 @@ import pandas as pd
 from datasets.FactCheckedNews.FactCheckedNews import FactCheckedNews
 from datasets.FakeBr.FakeBr import FakeBr
 from datasets.FakeNewsNet.FakeNewsNet import FakeNewsNet
+import torch.nn.functional as F
 
 
 parser = argparse.ArgumentParser()
@@ -146,7 +148,7 @@ if __name__ == '__main__':
                     negatives = ccrne_classifier.negative_inference(200)
                     print(len(negatives))
                     acc, f1 = evaluate_model(negatives, true_labels)
-                    results = pd.DataFrame({'model': ['CCRNE'], 'acc': [acc], 'f1': [f1], 'P': prate})
+                    results = pd.DataFrame({'model': ['CCRNE'], 'acc': [acc], 'f1': [f1], 'P': prate, 'neg': len(negatives)})
                     df = pd.concat([df, results])
 
                 if "MCLS" in args.model:
@@ -155,7 +157,7 @@ if __name__ == '__main__':
                     negatives = mcls_classifier.negative_inference(200)
                     # print(negatives)
                     acc, f1 = evaluate_model(negatives, true_labels)
-                    results = pd.DataFrame({'model': ['MCLS'], 'acc': [acc], 'f1': [f1], 'P' : prate})
+                    results = pd.DataFrame({'model': ['MCLS'], 'acc': [acc], 'f1': [f1], 'P' : prate, 'neg': len(negatives)})
                     df = pd.concat([df, results])
 
                 if "LPPUL" in args.model:
@@ -164,25 +166,26 @@ if __name__ == '__main__':
                     negatives = lp_pul_classifier.negative_inference(200)
                     # print(negatives)
                     acc, f1 = evaluate_model(negatives, true_labels)
-                    results = pd.DataFrame({'model': ['LP_PUL'], 'acc': [acc], 'f1': [f1], 'P': prate})
+                    results = pd.DataFrame({'model': ['LP_PUL'], 'acc': [acc], 'f1': [f1], 'P': prate, 'neg': len(negatives)})
                     df = pd.concat([df, results])
 
                 if "PULP" in args.model:
-                    pulp_classifier = PU_LP(data.x, P, U, alpha=0.3, m = 3, l = 1)
+                    data_graph = data_to_adjacency_matrix(data)
+                    pulp_classifier = PU_LP(data_graph, P, U, alpha=0.05, m = 2, l = 0.6)
                     pulp_classifier.train()
-                    negatives = pulp_classifier.negative_inference(200)
+                    negatives = pulp_classifier.negative_inference()
                     # print(negatives)
                     acc, f1 = evaluate_model(negatives, true_labels)
-                    results = pd.DataFrame({'model': ['PU_LP'], 'acc': [acc], 'f1': [f1], 'P':prate})
+                    results = pd.DataFrame({'model': ['PU_LP'], 'acc': [acc], 'f1': [f1], 'P':prate, 'neg': len(negatives)})
                     df = pd.concat([df, results])
 
                 if "RCSVM" in args.model:
-                    rcsvm_classifier = RCSVM_RN(data.x, P, U, alpha = 0.1, beta = 0.9)
+                    rcsvm_classifier = RCSVM_RN(data.x, P, U, alpha = 0.2, beta = 0.8)
                     rcsvm_classifier.train()
-                    negatives = rcsvm_classifier.negative_inference(200)
+                    negatives = rcsvm_classifier.negative_inference()
                     # print(negatives)
                     acc, f1 = evaluate_model(negatives, true_labels)
-                    results = pd.DataFrame({'model': ['RCSVM'], 'acc': [acc], 'f1': [f1], 'P': prate})
+                    results = pd.DataFrame({'model': ['RCSVM'], 'acc': [acc], 'f1': [f1], 'P': prate, 'neg': len(negatives)})
                     df = pd.concat([df, results])
 
                 if "AE_MLP" in args.model:

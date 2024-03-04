@@ -50,6 +50,12 @@ class FakeNewsNet(Dataset):
         X = torch.tensor(np.array(vectors))
         y = torch.tensor(df.label)
         edge_index = knn_graph(X, 3)
+
+        # Shuffling
+        indices = np.random.permutation(X.shape[0])
+        X = X[indices]
+        y = y[indices]
+
         data = Data(x = X, edge_index=edge_index, y = y)
         torch.save(data, osp.join(self.processed_dir, f'data.pt'))
 
@@ -60,7 +66,5 @@ class FakeNewsNet(Dataset):
         data = torch.load(osp.join(self.processed_dir, f'data.pt'))
         return data
 
-dataset = FakeNewsNet(root = 'datasets/FakeNewsNet')
+# dataset = FakeNewsNet(root = 'datasets/FakeNewsNet')
 # dataset.process()
-# data = dataset.get()
-# print(data)

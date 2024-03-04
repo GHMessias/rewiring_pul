@@ -51,6 +51,12 @@ class FakeBr(Dataset):
         X = torch.tensor(np.array(vectors))
         y = torch.tensor([1 if x == 'fake' else -1 for x in df.label])
         edge_index = knn_graph(X, 3)
+
+        # Shuffling
+        indices = np.random.permutation(X.shape[0])
+        X = X[indices]
+        y = y[indices]
+
         data = Data(x = X, edge_index=edge_index, y = y)
         torch.save(data, osp.join(self.processed_dir, f'data.pt'))
 
@@ -60,3 +66,6 @@ class FakeBr(Dataset):
     def get(self):
         data = torch.load(osp.join(self.processed_dir, f'data.pt'))
         return data
+
+# dataset = FakeBr(root = 'datasets/FakeBr')
+# dataset.process()
